@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>China Labor Plot - STAT 6610 project 1 - John King</title>
+        <script type="text/javascript" src="d3/d3.v3.js"></script>
+    </head>
+    <body>
+        <script type="text/javascript">
+
+
+colors = ['#66c2a5','#fc8d62','#8da0cb','#e78ac3'] // from colorbrewer, of course
+// a fifth, #a6d854, will be used for the button
+
+var animation_delay = 4000;
+
+var svg_w = 800;
+var svg_h = 550;
+
+var svg = d3.select('body')
+  .append('svg')
+  .attr('width', svg_w)
+  .attr('height', svg_h);
+
+var projtn = d3.geo.mercator()
+    .center([116,38])
+    .scale(620);
+
+var path = d3.geo.path().projection(projtn)
+
+var launch_viz = function(json_data,csv_data){
+  
+  // draw the map:
+  svg.selectAll('path')
+    .data(json_data.features)
+    .enter()
+    .append('path')
+    .attr('d',path)
+    .style('fill','#cccccc')
+
+  // find the four provinces we are interested in and extract the necessary data:
+
+  var data_nest = d3.nest()
+                    .key(function(d){return d.Province})
+                    .key(function(d){return d.Year})
+                    .rollup(function(entries){
+                      return d3.sum(entries.map(function(d){return d.Count}))
+                    })
+                    .map(csv_data,d3.map);
+  var provs = data_nest.keys() // this shouldn't be a problem, but this is to have an array of fixed order
+  var supp_data = d3.map()
+  
+
+  for (var i=0;i<json_data.features.length;i++){
+    for (var j=0;j<data_nest.size();j++){
+      if (json_data.features[i].properties.name==provs[j]){
+        prov = provs[j];
+        props = json_data.features[i].properties;
+        dd = d3.map();
+        // the json file gives us a few extra pieces of data (aside from the map coords)
+        dd.set('props',json_data.features[i].properties); 
+        dd.set('lat',props.latitude);
+        dd.set('lon',props.longitude);
+        dd.set('name_zw',props.name_local.split('|')[1]);
+        supp_data.set(prov,dd);
+        break
+      }
+    }
+  }
+  // this will ensure the labels correspond to latitude:
+  provs.sort(function(p1,p2){
+    return supp_data.get(p2).get('lat') - supp_data.get(p1).get('lat')})
+
+
+  svg.append('text')
+    .attr('class','title1')
+    .attr('x',15)
+    .attr('y',500)
+    .attr('font-family','serif')
+    .attr('font-style','italic')
+    .attr('font-size',36)
+    .attr('text-anchor','start')
+    .attr('fill','rbg(80,80,80)')
+    .text('Labor Incidents in')
+  svg.append('text')
+    .attr('class','title1')
+    .attr('x',15)
+    .attr('y',540)
+    .attr('font-family','serif')
+    .attr('font-style','italic')
+    .attr('font-size',36)
+    .attr('text-anchor','start')
+    .attr('fill','rbg(80,80,80)')
+    .text('Four Provinces of China')
+  svg.append('rect')
+    .attr('class','button1')
+    .attr('x',5)
+    .attr('y',5)
+    .attr('rx',10)
+    .attr('width',186)
+    .attr('height',38)
+    .attr('fill','#a6d854')
+    .attr('opacity',.2)
+  svg.append('text')
+    .attr('class','button1')
+    .attr('x',15)
+    .attr('y',33)
+    .attr('font-family','sans-serif')
+    .attr('font-size',24)
+    .attr('text-anchor','start')
+    .attr('fill','rbg(80,80,80)')
+    .text('Show next year')
+  svg.selectAll('circle')
+     .data(provs)
+     .enter()
+     .append('circle')
+     .attr('cx',function(d){
+       return projtn([supp_data.get(d).get('lon'),supp_data.get(d).get('lat')])[0]})
+     .attr('cy',function(d){
+       return projtn([supp_data.get(d).get('lon'),supp_data.get(d).get('lat')])[1]})
+     .attr('r',1)
+     .attr('fill',function(d,i){return colors[i]})
+     .attr('opacity',.1)
+  svg.append('text')
+    .attr('class','year_text')
+    .attr('x',260)
+    .attr('y',140)
+    .attr('font-family','sans-serif')
+    .attr('font-weight','bold')
+    .attr('font-size',72)
+    .attr('text-anchor','start')
+    .attr('fill','rbg(80,80,80)')
+    .attr('opacity',0)
+    .text('')
+  svg.selectAll('rect.labels')
+    .data(provs)
+    .enter()
+    .append('rect')
+    .attr('class','labels')
+    .attr('fill',function(d,i){return colors[i]})
+    .attr('x',590)
+    .attr('y',function(d,i){return 300+50*i})
+    .attr('width',205)
+    .attr('height',40)
+    .attr('rx',5)
+    .attr('opacity',.5)
+  svg.selectAll('text.fixed_labels')
+    .data(provs)
+    .enter()
+    .append('text')
+    .attr('class','fixed_labels')
+    .attr('x',600)
+    .attr('y',function(d,i){return 325+50*i})
+    .attr('font-family','sans-serif')
+    .attr('font-size',18)
+    .attr('text-anchor','start')
+    .attr('fill','rbg(80,80,80)')
+    .attr('opacity',1)
+    .text(function(d){return supp_data.get(d).get('name_zw')+'  '+d})
+  svg.selectAll('text.dyn_labels')
+    .data(provs)
+    .enter()
+    .append('text')
+    .attr('class','dyn_labels')
+    .attr('x',790)
+    .attr('y',function(d,i){return 325+50*i})
+    .attr('font-family','sans-serif')
+    .attr('font-size',18)
+    .attr('text-anchor','end')
+    .attr('fill','rbg(80,80,80)')
+    .attr('opacity',0)
+    .text(function(d,i){return i}) // initial text is arbitrary, this was for testing
+
+
+
+  current_year = 2010;
+
+  var cycle_through_years = function() {
+    if (current_year<2015) {
+      current_year++;
+      svg = d3.select('svg');
+      svg.selectAll('circle')
+          .transition()
+          .delay(200)
+          .duration(800)
+          .ease('linear')
+          .attr('r',function(d){
+            //console.log([d,current_year,data_nest,data_nest.get(d).get(current_year)]);
+            return Math.sqrt(data_nest.get(d).get(current_year))*5
+          })
+          .attr('opacity',.5)
+
+      svg.selectAll('.dyn_labels')
+        .text(function(d){return data_nest.get(d).get(current_year)})
+        .transition()
+        .duration(400)
+        .ease('cubic-in')
+        .attr('opacity',.8)
+        .each('end',function(){if (animation_in_progress) {
+          svg.selectAll('.dyn_labels')
+            .transition()
+            .delay(animation_delay)
+            .duration(400)
+            .ease('cubic-out')
+            .attr('opacity',0)
+        } })
+
+      svg.select('.year_text')
+        .text(current_year)
+        .transition()
+        .duration(400)
+        .ease('cubic-in')
+        .attr('opacity',.8)
+        .each('end',function(){if (animation_in_progress) {
+          svg.select('.year_text')
+            .transition()
+            .delay(animation_delay)
+            .duration(400)
+            .ease('cubic-out')
+            .attr('opacity',0)
+            .each('end',function(){cycle_through_years()})
+        } })
+
+    } else {
+      current_year = 2010
+      svg.selectAll('circle')
+          .transition()
+          .delay(200)
+          .duration(300)
+          .ease('linear')
+          .attr('r',1)
+          .attr('opacity',0)
+      animation_in_progress = 0;
+    }
+  }
+
+  var animation_in_progress = 0;
+
+  d3.selectAll('.button1')
+    .on('mouseover',function(){
+      d3.select('rect.button1')
+        .attr('opacity',.6)
+    })
+    .on('mouseout',function(){
+      d3.select('rect.button1')
+        .attr('opacity',.2)
+    })
+    .on('click',function(){
+      animation_in_progress = (animation_in_progress + 1) % 2;
+      cycle_through_years()})
+
+}
+
+//json_data = gd.j
+//csv_data = gd.c
+var gd = {}
+
+var json_file = 'zh-mainland-provinces.json'
+
+d3.json(json_file, function(json_data){
+  d3.csv('data_flat.csv',function(csv_data){
+    gd.c = csv_data;
+    gd.j = json_data;
+    launch_viz(json_data,csv_data);
+  })
+})
+
+
+        </script>
+    </body>
+</html>
